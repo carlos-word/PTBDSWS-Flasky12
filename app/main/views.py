@@ -1,9 +1,10 @@
 from flask import render_template, session, redirect, url_for, current_app
 from .. import db
-from ..models import User, Role, EmailLog
-from ..email import send_email
+from ..models import User, Role
+from ..email import send_email, send_simple_message
 from . import main
 from .forms import NameForm
+
 
 @main.route('/', methods=['GET', 'POST'])
 def index():
@@ -19,28 +20,28 @@ def index():
             user = User(username=form.name.data, role=user_role)
             db.session.add(user)
             db.session.commit()
-            
             session['known'] = False
             
+            print('FLASKY_ADMIN: ' + str(current_app.config['FLASKY_ADMIN']), flush=True)
             if current_app.config['FLASKY_ADMIN']:
+                email_obrigatorio = form.notification_email.data
+                destinatarios = [
+                    current_app.config['FLASKY_ADMIN'], 
+                    "flaskaulasweb@zohomail.com",
+                    email_obrigatorio
+                ]
                 
-                send_email(current_app.config['FLASKY_ADMIN'], 
-                           'Novo Usuário Cadastrado',
-                           'mail/new_user', 
-                           user=user) 
+                print('Enviando mensagem...', flush=True)
+                send_simple_message(destinatarios, 'Novo usuário', form.name.data)
+                print('Mensagem enviada...', flush=True)
         else:
             session['known'] = True
-        
         session['name'] = form.name.data
         return redirect(url_for('.index'))
-        
-    return render_template('index.html', 
-                           form=form, 
-                           name=session.get('name'),
-                           known=session.get('known', False))
+    
+    users_list = User.query.order_by(User.username).all()
 
-@main.route('/emails')
-def emails():
-
-    email_list = EmailLog.query.order_by(EmailLog.timestamp.desc()).all()
-    return render_template('emails.html', emails=email_list)
+    return render_template('index.html',
+                           form=form, name=session.get('name'),
+                           known=session.get('known', False),
+                           users=users_list)
